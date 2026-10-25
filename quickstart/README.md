@@ -9,7 +9,7 @@ LOAMS_ENDPOINT=http://127.0.0.1:8080 cargo run -p quickstart
 Expected output:
 
 ```
-connected to Loams 0.1.0 (http://127.0.0.1:8080)
+connected to Loams 0.1.2 (http://127.0.0.1:8080)
 created examples-rust/kb
 upserted 3 documents
 0.0328  refund policy

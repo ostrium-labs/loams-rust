@@ -1,5 +1,8 @@
 # Loams Rust examples
 
+These examples target **Loams SDK 0.1.2**. Installation and CI require the matching
+0.1.2 packages and release tags to be published.
+
 [Loams](https://loams.dev) is one engine for hybrid retrieval: vector search, BM25 full text and filters fused in a single query, over documents on object storage. This repository holds example apps for the Rust SDK (`loams` on crates.io).
 
 | Example | What it shows |
@@ -28,7 +31,14 @@ Run `quickstart` first: the other two read the collection it creates. These exam
 
 ## About the SDK version
 
-The `loams` crate's 0.1.0 release is not on crates.io yet, so these examples pin `0.1.0-preview.2`. The SDK in the monorepo (`sdks/rust`) is the same client. In this version the SDK covers the instance, system and live modules; the collection calls in `quickstart` and `search-service` go through the generated `loams-proto` clients over the SDK's own transport, and SQL is a JSON `POST` to the native API. When 0.1.0 is published, bump the version in each `Cargo.toml`.
+The examples pin `loams` (and `loams-proto` where used) to `=0.1.2`.
+The SDK provides collection, search, SQL and stream modules as well as instance,
+system and Live. These examples retain generated collection clients over the SDK
+transport and the native SQL HTTP route. See the [SDK notes example](https://github.com/ostrium-labs/loams/blob/v0.1.2/sdks/rust/examples/notes/main.rs)
+for builders, collection handles and SDK SQL.
+
+After publication, run `cargo generate-lockfile` and commit `Cargo.lock`. CI
+resolves the new release before building with `--locked`.
 
 ## Links
 

@@ -5,7 +5,7 @@
 //! Run `quickstart` first, which creates and fills `examples-rust/kb`.
 //!
 //! ```sh
-//! LOAMS_ENDPOINT=http://127.0.0.1:18080 cargo run -p search-service
+//! LOAMS_ENDPOINT=http://127.0.0.1:8080 cargo run -p search-service
 //! curl 'localhost:3737/search?q=refund&v=1,0,0&tenant=a'
 //! ```
 

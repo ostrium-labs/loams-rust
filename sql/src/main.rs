@@ -4,11 +4,12 @@
 //! Run `quickstart` first, which creates and fills `examples-rust/kb`.
 //!
 //! ```sh
-//! LOAMS_ENDPOINT=http://127.0.0.1:18080 cargo run -p sql
+//! LOAMS_ENDPOINT=http://127.0.0.1:8080 cargo run -p sql
 //! ```
 //!
-//! The 0.1 Rust SDK has no SQL call; SQL is a JSON POST to the native API's
-//! `/v1/namespaces/{ns}/sql` route. The SDK is used to check the instance.
+//! This example demonstrates the native `/v1/namespaces/{ns}/sql` HTTP route.
+//! The SDK also provides a SQL module. This example uses its instance module
+//! to check the connection before sending SQL over HTTP.
 
 use loams::instance_v1::GetInstanceRequest;
 use loams::{CallOptionsOverrides, Loams};

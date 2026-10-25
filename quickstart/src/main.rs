@@ -2,7 +2,7 @@
 //! search (vector + BM25 + filter) and print the hits.
 //!
 //! ```sh
-//! LOAMS_ENDPOINT=http://127.0.0.1:18080 cargo run -p quickstart
+//! LOAMS_ENDPOINT=http://127.0.0.1:8080 cargo run -p quickstart
 //! ```
 //!
 //! Everything lives in the `examples-rust` namespace.
@@ -35,8 +35,8 @@ async fn main() -> Result<(), BoxError> {
         .await?;
     println!("connected to {} {} ({endpoint})", info.name, info.server_version);
 
-    // The 0.1 SDK has no collection module yet, so the collection calls use
-    // the generated clients of `loams-proto` over the SDK's own transport.
+    // Demonstrate the generated `loams-proto` clients over the SDK transport.
+    // SDK collection handles and builders are also available.
     let transport = loams::transport(&options)?;
     let config = options.config()?;
     let namespaces = NamespaceServiceClient::new(transport.clone(), config.clone());
