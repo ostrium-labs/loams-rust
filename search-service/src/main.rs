@@ -1,13 +1,5 @@
-//! A small axum service in front of Loams: `GET /search?q=refund&tenant=a`
-//! runs a hybrid search (vector + BM25 fused with RRF, optional tenant filter) through the SDK's
-//! transport and answers JSON.
-//!
-//! Run `quickstart` first, which creates and fills `examples-rust/kb`.
-//!
-//! ```sh
-//! LOAMS_ENDPOINT=http://127.0.0.1:8080 cargo run -p search-service
-//! curl 'localhost:3737/search?q=refund&v=1,0,0&tenant=a'
-//! ```
+//! Axum adapter that runs a high-level SDK hybrid search for `GET /search`.
+//! Run `quickstart` first to seed `examples-rust/kb`.
 
 use std::sync::Arc;
 
@@ -15,20 +7,18 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use loams::TransportOptions;
-use loams_proto::loams::collection::v1::{QueryServiceClient, SearchRequest};
+use loams::builders::{Filter, Fusion, Search, TextRetriever, VectorOptions};
+use loams::{CallOptionsOverrides, Loams};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-const NAMESPACE: &str = "examples-rust";
 const COLLECTION: &str = "kb";
-
-type Client = QueryServiceClient<connectrpc::client::HttpClient>;
+type Client = Loams;
 
 #[derive(Deserialize)]
 struct Params {
     q: String,
-    /// A comma-separated 3-d query vector; the example's embeddings are fake.
+    /// A comma-separated 3-d query vector; the sample embeddings are illustrative.
     v: Option<String>,
     tenant: Option<String>,
     limit: Option<u32>,
@@ -36,11 +26,7 @@ struct Params {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let endpoint =
-        std::env::var("LOAMS_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:8080".into());
-    let options = TransportOptions::new(endpoint);
-    let client: Client = QueryServiceClient::new(loams::transport(&options)?, options.config()?);
-
+    let client = Loams::from_env()?.with_namespace("examples-rust");
     let app = Router::new()
         .route("/search", get(search))
         .route("/healthz", get(|| async { "ok" }))
@@ -56,40 +42,27 @@ async fn search(
     State(client): State<Arc<Client>>,
     Query(params): Query<Params>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    let vector: Vec<f32> = params
-        .v
-        .as_deref()
-        .unwrap_or("1,0,0")
-        .split(',')
-        .filter_map(|x| x.trim().parse().ok())
-        .collect();
-    let mut body = json!({
-        "namespace": NAMESPACE,
-        "collection": COLLECTION,
-        "retrievers": [
-            {"vector": {"field": "embedding", "query": vector, "k": 20}},
-            {"text": {"query": {"match": {"field": "body", "text": params.q}}, "k": 20}}
-        ],
-        "fusion": {"rrf": {"k": 60}},
-        "limit": params.limit.unwrap_or(5),
-    });
-    if let Some(tenant) = params.tenant {
-        body["filter"] = json!({"term": {"field": "tenant", "value": tenant}});
+    let vector: Vec<f32> = params.v.as_deref().unwrap_or("1,0,0")
+        .split(',').map(str::trim).map(str::parse).collect::<Result<_, _>>()
+        .map_err(|e: std::num::ParseFloatError| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    if vector.len() != 3 {
+        return Err((StatusCode::BAD_REQUEST, "v must contain exactly three numbers".into()));
     }
-    let bad = |e: String| (StatusCode::INTERNAL_SERVER_ERROR, e);
-    let request: SearchRequest = serde_json::from_value(body).map_err(|e| bad(e.to_string()))?;
-    let response = client
-        .search(request)
-        .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:?}")))?
-        .into_owned();
-    let hits: Vec<Value> = response
-        .hits
-        .iter()
-        .map(|h| {
-            let source = serde_json::to_value(&h.source).unwrap_or(Value::Null);
-            json!({"id": serde_json::to_value(&h.pk).unwrap_or(Value::Null), "score": h.score, "source": source})
-        })
-        .collect();
-    Ok(Json(json!({ "hits": hits })))
+    let mut request = Search::on(COLLECTION)
+        .text(TextRetriever::fields(&params.q, ["body"]))
+        .vector("embedding", &vector, VectorOptions::k(20))
+        .fuse(Fusion::rrf(Some(60)))
+        .limit(params.limit.unwrap_or(5));
+    if let Some(tenant) = params.tenant {
+        request = request.filter(Filter::eq("tenant", tenant));
+    }
+    let response = client.search().query(request.build().map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
+        CallOptionsOverrides::new()).await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("{e:?}")))?;
+    let hits: Vec<Value> = response.hits.iter().map(|h| {
+        json!({"id": serde_json::to_value(&h.pk).unwrap_or(Value::Null),
+               "score": h.score,
+               "source": serde_json::to_value(&h.source).unwrap_or(Value::Null)})
+    }).collect();
+    Ok(Json(json!({"hits": hits})))
 }
